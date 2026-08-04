@@ -1,6 +1,10 @@
 import { Plugin, parsePropertyId } from 'obsidian';
 import { PLUGIN_FEATURE, verifyLicense } from './license';
-import { notifyLicenseChanged, setLicense } from './license-state';
+import {
+	clearLicense,
+	notifyLicenseChanged,
+	setLicense,
+} from './license-state';
 import { CrispBaseSettingTab } from './settings';
 import { CRISP_BASE_BOARD_VIEW_TYPE, CrispBaseBoardView } from './crisp-base-board-view';
 import {
@@ -225,10 +229,21 @@ export default class CrispBasePlugin extends Plugin {
 
 		const data = (await this.loadData()) as { licenseCode?: string } | undefined;
 		if (data?.licenseCode) {
-			const result = await verifyLicense(data.licenseCode, PLUGIN_FEATURE);
-			if (result.valid && result.payload) {
-				setLicense(true, data.licenseCode, result.payload);
+			// Local Ed25519 + expiry verification only — fast, no network.
+			const local = await verifyLicense(data.licenseCode, PLUGIN_FEATURE, {
+				skipOnlineCheck: true,
+			});
+			if (local.valid && local.payload) {
+				setLicense(true, data.licenseCode, local.payload);
 				notifyLicenseChanged();
+				// Online device/revocation check runs in the background and
+				// downgrades the license if the server rejects it.
+				void verifyLicense(data.licenseCode, PLUGIN_FEATURE).then((result) => {
+					if (!result.valid) {
+						clearLicense();
+						notifyLicenseChanged();
+					}
+				});
 			}
 		}
 	}

@@ -86,4 +86,28 @@ describe('verifyLicense', () => {
 		expect(result.valid).toBe(false);
 		expect(result.reason).toContain('到期');
 	});
+
+	it('skips the online check when skipOnlineCheck is set', async () => {
+		const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+		const payload = { product: 'Crisp Base', features: ['all'] };
+		const payloadB64 = Buffer.from(JSON.stringify(payload)).toString(
+			'base64url',
+		);
+		const signature = sign(
+			null,
+			Buffer.from(payloadB64),
+			privateKey,
+		).toString('base64url');
+
+		const result = await verifyLicense(`${payloadB64}.${signature}`, 'crisp-base', {
+			publicKeyPem: publicKey
+				.export({ type: 'spki', format: 'pem' })
+				.toString(),
+			skipOnlineCheck: true,
+			request: async () => {
+				throw new Error('online check should not be called');
+			},
+		});
+		expect(result.valid).toBe(true);
+	});
 });

@@ -1,6 +1,6 @@
 {
   "name": "crisp-base",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Notion-like database views for Obsidian Bases (Crisp suite)",
   "main": "main.js",
   "type": "module",

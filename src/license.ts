@@ -40,6 +40,8 @@ interface VerifyOptions {
 	getDeviceId?: () => string;
 	/** Injectable for tests; defaults to the embedded Crisp suite public key. */
 	publicKeyPem?: string;
+	/** Skip the online device check (used on startup so loads never block on the network). */
+	skipOnlineCheck?: boolean;
 	request?: (options: {
 		url: string;
 		method: string;
@@ -145,6 +147,10 @@ export async function verifyLicense(
 			message as BufferSource,
 		);
 		if (!valid) return { valid: false, reason: '授权签名无效或伪造' };
+
+		if (options.skipOnlineCheck) {
+			return { valid: true, payload, message: null };
+		}
 
 		try {
 			const response = await request({
