@@ -164,12 +164,12 @@ export async function verifyLicense(
 					pluginId: pluginFeature,
 				}),
 			});
-			if (response.status === 200 && response.json) {
-				const json = response.json as {
-					valid?: boolean;
-					reason?: string;
-					message?: string;
-				};
+			const json = response.json as {
+				valid?: boolean;
+				reason?: string;
+				message?: string;
+			};
+			if (json && typeof json.valid === 'boolean') {
 				if (json.valid === false) {
 					return { valid: false, reason: json.reason ?? '设备数已达上限' };
 				}
