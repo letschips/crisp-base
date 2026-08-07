@@ -123,7 +123,7 @@ export class CrispBaseGalleryView extends BasesView implements HoverParent {
 				this.selectedPath === entry.file.path ? null : entry.file.path;
 			this.render();
 		});
-		this.registerDomEvent(card, 'mouseover', (event: MouseEvent) => {
+		card.addEventListener('mouseover', (event: MouseEvent) => {
 			this.app.workspace.trigger('hover-link', {
 				event,
 				source: 'crisp-base-gallery',

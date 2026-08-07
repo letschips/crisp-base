@@ -67,18 +67,18 @@ export class CrispBaseCalendarView extends BasesView implements HoverParent {
 			parsedAny = true;
 			const list = entriesByDay.get(iso) ?? [];
 			list.push(entry);
-			entriesByDay.set(iso, list);
-		}
-
-		this.renderToolbar(dateProperty);
+		entriesByDay.set(iso, list);
+	}
 
 		if (!dateProperty) {
+			this.renderToolbar(dateProperty);
 			this.renderHint(
 				'Choose a "Date property" in the view settings to show notes on the calendar.',
 			);
 			return;
 		}
 		if (!parsedAny) {
+			this.renderToolbar(dateProperty);
 			this.renderHint(
 				'No notes with a valid date were found. Add dates to the "' +
 					this.config.getDisplayName(dateProperty) +
@@ -86,6 +86,8 @@ export class CrispBaseCalendarView extends BasesView implements HoverParent {
 			);
 			return;
 		}
+
+		this.renderToolbar(dateProperty);
 
 		const content = this.containerEl.createDiv({ cls: 'lb-content' });
 		const grid = content.createDiv({ cls: 'cc-grid' });
@@ -229,7 +231,7 @@ export class CrispBaseCalendarView extends BasesView implements HoverParent {
 				this.selectedPath === entry.file.path ? null : entry.file.path;
 			this.render();
 		});
-		this.registerDomEvent(chip, 'mouseover', (event: MouseEvent) => {
+		chip.addEventListener('mouseover', (event: MouseEvent) => {
 			this.app.workspace.trigger('hover-link', {
 				event,
 				source: 'crisp-base-calendar',

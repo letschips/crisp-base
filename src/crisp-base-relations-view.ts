@@ -69,17 +69,26 @@ export class CrispBaseRelationsView extends BasesView implements HoverParent {
 			outgoingMap.set(entry.file.path, new Set(targets));
 		}
 
+		const incomingMap = new Map<string, BasesEntry[]>();
+		if (showBacklinks) {
+			for (const entry of entries) {
+				const targets = outgoingMap.get(entry.file.path);
+				if (!targets) continue;
+				for (const targetPath of targets) {
+					const targetEntry = byPath.get(targetPath);
+					if (!targetEntry) continue;
+					const list = incomingMap.get(targetEntry.file.path) ?? [];
+					list.push(entry);
+					incomingMap.set(targetEntry.file.path, list);
+				}
+			}
+		}
+
 		const rows: RelationRow[] = entries.map((entry) => {
 			const out = [...outgoingMap.get(entry.file.path) ?? []]
 				.map((path) => byPath.get(path))
 				.filter((target): target is BasesEntry => !!target);
-			const inc = showBacklinks
-				? entries.filter(
-						(other) =>
-							other.file.path !== entry.file.path &&
-							outgoingMap.get(other.file.path)?.has(entry.file.path),
-				  )
-				: [];
+			const inc = incomingMap.get(entry.file.path) ?? [];
 			return { entry, out, inc };
 		});
 
@@ -192,7 +201,7 @@ export class CrispBaseRelationsView extends BasesView implements HoverParent {
 				this.selectedPath === target.file.path ? null : target.file.path;
 			this.render();
 		});
-		this.registerDomEvent(chip, 'mouseover', (event: MouseEvent) => {
+		chip.addEventListener('mouseover', (event: MouseEvent) => {
 			this.app.workspace.trigger('hover-link', {
 				event,
 				source: 'crisp-base-relations',

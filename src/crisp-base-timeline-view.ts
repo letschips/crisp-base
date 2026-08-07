@@ -268,14 +268,14 @@ export class CrispBaseTimelineView extends BasesView implements HoverParent {
 			bar.addClass('is-selected');
 		}
 
-		this.registerDomEvent(bar, 'click', () => {
+		bar.addEventListener('click', () => {
 			this.selectedPath =
 				this.selectedPath === item.entry.file.path
 					? null
 					: item.entry.file.path;
 			this.render();
 		});
-		this.registerDomEvent(bar, 'mouseover', (event: MouseEvent) => {
+		bar.addEventListener('mouseover', (event: MouseEvent) => {
 			this.app.workspace.trigger('hover-link', {
 				event,
 				source: 'crisp-base-timeline',

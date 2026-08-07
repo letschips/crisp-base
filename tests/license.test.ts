@@ -110,4 +110,77 @@ describe('verifyLicense', () => {
 		});
 		expect(result.valid).toBe(true);
 	});
+
+	it('honors server-side rejection on non-200 status (revocation)', async () => {
+		const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+		const payload = { product: 'Crisp Base', features: ['all'] };
+		const payloadB64 = Buffer.from(JSON.stringify(payload)).toString(
+			'base64url',
+		);
+		const signature = sign(
+			null,
+			Buffer.from(payloadB64),
+			privateKey,
+		).toString('base64url');
+
+		const result = await verifyLicense(`${payloadB64}.${signature}`, 'crisp-base', {
+			publicKeyPem: publicKey
+				.export({ type: 'spki', format: 'pem' })
+				.toString(),
+			request: async () => ({
+				status: 403,
+				json: { valid: false, reason: '该授权已被吊销，如有疑问请联系卖家' },
+			}),
+		});
+		expect(result.valid).toBe(false);
+		expect(result.reason).toContain('吊销');
+	});
+
+	it('honors server-side device limit rejection on non-200 status', async () => {
+		const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+		const payload = { product: 'Crisp Base', features: ['all'] };
+		const payloadB64 = Buffer.from(JSON.stringify(payload)).toString(
+			'base64url',
+		);
+		const signature = sign(
+			null,
+			Buffer.from(payloadB64),
+			privateKey,
+		).toString('base64url');
+
+		const result = await verifyLicense(`${payloadB64}.${signature}`, 'crisp-base', {
+			publicKeyPem: publicKey
+				.export({ type: 'spki', format: 'pem' })
+				.toString(),
+			request: async () => ({
+				status: 403,
+				json: { valid: false, reason: '该卡密激活设备数已达上限' },
+			}),
+		});
+		expect(result.valid).toBe(false);
+		expect(result.reason).toContain('上限');
+	});
+
+	it('falls back to offline-valid only on network errors', async () => {
+		const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+		const payload = { product: 'Crisp Base', features: ['all'] };
+		const payloadB64 = Buffer.from(JSON.stringify(payload)).toString(
+			'base64url',
+		);
+		const signature = sign(
+			null,
+			Buffer.from(payloadB64),
+			privateKey,
+		).toString('base64url');
+
+		const result = await verifyLicense(`${payloadB64}.${signature}`, 'crisp-base', {
+			publicKeyPem: publicKey
+				.export({ type: 'spki', format: 'pem' })
+				.toString(),
+			request: async () => {
+				throw new Error('network down');
+			},
+		});
+		expect(result.valid).toBe(true);
+	});
 });

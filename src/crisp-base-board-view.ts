@@ -178,9 +178,9 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 				cls: 'lb-column-more',
 				text: `+${entries.length - limit} more`,
 			});
-			more.addEventListener('click', () => {
-				this.config.set('board.cardLimit', limit + 100);
-				this.render();
+		more.addEventListener('click', () => {
+			this.config.set('board.cardLimit', limit + Math.max(100, limit));
+			this.render();
 			});
 		}
 	}
@@ -224,17 +224,18 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 		}
 		if (groupBy) {
 			card.setAttr('draggable', 'true');
-			this.registerDomEvent(card, 'dragstart', (event: DragEvent) => {
+			card.addEventListener('dragstart', (event: DragEvent) => {
+				event.dataTransfer?.setData('application/x-crisp-base-card', entry.file.path);
 				event.dataTransfer?.setData('text/plain', entry.file.path);
 				if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 				card.addClass('is-dragging');
 			});
-			this.registerDomEvent(card, 'dragend', () => {
+			card.addEventListener('dragend', () => {
 				card.removeClass('is-dragging');
 				this.clearDropTargets();
 			});
 		}
-		this.registerDomEvent(card, 'click', () => {
+		card.addEventListener('click', () => {
 			this.selectedPath =
 				this.selectedPath === entry.file.path ? null : entry.file.path;
 			this.render();
@@ -243,14 +244,14 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 		const topRow = card.createDiv({ cls: 'lb-card-top' });
 		const title = topRow.createDiv({ cls: 'lb-card-title' });
 		title.setText(entry.file.basename);
-		this.registerDomEvent(title, 'click', (event: MouseEvent) => {
+		title.addEventListener('click', (event: MouseEvent) => {
 			if (event.button !== 0 && event.button !== 1) return;
 			event.preventDefault();
 			event.stopPropagation();
 			const modEvent = Keymap.isModEvent(event);
 			void this.app.workspace.openLinkText(entry.file.path, '', modEvent);
 		});
-		this.registerDomEvent(title, 'mouseover', (event: MouseEvent) => {
+		title.addEventListener('mouseover', (event: MouseEvent) => {
 			this.app.workspace.trigger('hover-link', {
 				event,
 				source: 'linear-board',
@@ -262,7 +263,7 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 
 		const menuButton = topRow.createDiv({ cls: 'lb-card-menu' });
 		setIcon(menuButton, 'more-horizontal');
-		this.registerDomEvent(menuButton, 'click', (event: MouseEvent) => {
+		menuButton.addEventListener('click', (event: MouseEvent) => {
 			event.stopPropagation();
 			this.showCardMenu(event, entry, groupBy);
 		});
@@ -292,21 +293,21 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 		label: string,
 	): void {
 		if (!groupBy) return;
-		this.registerDomEvent(column, 'dragover', (event: DragEvent) => {
+		column.addEventListener('dragover', (event: DragEvent) => {
 			event.preventDefault();
 			if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
 			column.addClass('is-drop-target');
 		});
-		this.registerDomEvent(column, 'dragleave', (event: DragEvent) => {
+		column.addEventListener('dragleave', (event: DragEvent) => {
 			const related = event.relatedTarget as Node | null;
 			if (!related || !column.contains(related)) {
 				column.removeClass('is-drop-target');
 			}
 		});
-		this.registerDomEvent(column, 'drop', (event: DragEvent) => {
+		column.addEventListener('drop', (event: DragEvent) => {
 			event.preventDefault();
 			column.removeClass('is-drop-target');
-			const path = event.dataTransfer?.getData('text/plain');
+			const path = event.dataTransfer?.getData('application/x-crisp-base-card');
 			if (!path || !groupBy) return;
 			const file = this.app.vault.getFileByPath(path);
 			if (!file) return;
