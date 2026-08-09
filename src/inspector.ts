@@ -60,13 +60,13 @@ export function renderPropertyInspector(
 			renderField(fields, app, entry.file, key, value, onChanged);
 		}
 	} else {
-		fields.createDiv({ cls: 'lb-inspector-hint', text: 'No properties on this note.' });
+		fields.createDiv({ cls: 'lb-inspector-hint', text: '这篇笔记还没有属性。' });
 	}
 
 	const actions = inspector.createDiv({ cls: 'lb-inspector-actions' });
 	const openButton = actions.createEl('button', { cls: 'lb-button' });
 	setIcon(openButton, 'external-link');
-	openButton.createSpan({ text: 'Open note' });
+	openButton.createSpan({ text: '打开笔记' });
 	openButton.addEventListener('click', () => {
 		void app.workspace.openLinkText(entry.file.path, '');
 	});
@@ -95,7 +95,7 @@ function renderGroupByField(
 	);
 	for (const value of values) {
 		const option = select.createEl('option', {
-			text: value ?? 'No value',
+			text: value ?? '无值',
 			value: value ?? '',
 		});
 		option.selected = value === current;
@@ -161,7 +161,7 @@ function renderField(
 		type: 'text',
 		attr: { value: typeof value === 'string' ? value : '' },
 	});
-	input.placeholder = 'Empty';
+	input.placeholder = '空';
 	input.addEventListener('change', () => {
 		void updateNoteProperty(
 			app,

@@ -64,7 +64,7 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 
 		const columns = new Map<string, BasesEntry[]>();
 		for (const entry of entries) {
-			const label = groupBy ? this.entryLabel(entry, groupBy) : 'All notes';
+			const label = groupBy ? this.entryLabel(entry, groupBy) : '全部笔记';
 			const list = columns.get(label) ?? [];
 			list.push(entry);
 			columns.set(label, list);
@@ -121,10 +121,10 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 	private renderToolbar(): void {
 		const toolbar = this.containerEl.createDiv({ cls: 'lb-toolbar' });
 		const title = toolbar.createDiv({ cls: 'lb-toolbar-title' });
-		title.setText(this.config.name || 'Crisp Base Board');
+		title.setText(this.config.name || 'Crisp Base 看板');
 		const newNoteButton = toolbar.createEl('button', { cls: 'lb-button' });
 		setIcon(newNoteButton, 'plus');
-		newNoteButton.createSpan({ text: 'New note' });
+		newNoteButton.createSpan({ text: '新建笔记' });
 		newNoteButton.addEventListener('click', () => {
 			this.createNote();
 		});
@@ -132,10 +132,10 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 
 	private renderEmptyBoard(board: HTMLElement): void {
 		const empty = board.createDiv({ cls: 'lb-empty' });
-		empty.createDiv({ text: 'No notes match this base yet.', cls: 'lb-empty-hint' });
+		empty.createDiv({ text: '当前 Base 还没有匹配的笔记。', cls: 'lb-empty-hint' });
 		const button = empty.createEl('button', { cls: 'lb-button' });
 		setIcon(button, 'plus');
-		button.createSpan({ text: 'Create a note' });
+		button.createSpan({ text: '创建笔记' });
 		button.addEventListener('click', () => {
 			this.createNote();
 		});
@@ -155,7 +155,10 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 
 		const header = column.createDiv({ cls: 'lb-column-header' });
 		header.createDiv({ cls: 'lb-column-dot' });
-		header.createDiv({ cls: 'lb-column-title', text: label });
+		header.createDiv({
+			cls: 'lb-column-title',
+			text: label === 'No value' ? '无值' : label,
+		});
 		header.createDiv({ cls: 'lb-column-count', text: String(entries.length) });
 		const addButton = header.createDiv({ cls: 'lb-column-add' });
 		setIcon(addButton, 'plus');
@@ -176,7 +179,7 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 		if (entries.length > limit) {
 			const more = cards.createDiv({
 				cls: 'lb-column-more',
-				text: `+${entries.length - limit} more`,
+				text: `另有 ${entries.length - limit} 张`,
 			});
 		more.addEventListener('click', () => {
 			this.config.set('board.cardLimit', limit + Math.max(100, limit));
@@ -331,7 +334,7 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 
 		menu.addItem((item) =>
 			item
-				.setTitle('Open note')
+				.setTitle('打开笔记')
 				.setIcon('file-text')
 				.onClick(() => {
 					void this.app.workspace.openLinkText(entry.file.path, '');
@@ -345,7 +348,7 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 				if (label === 'No value') continue;
 				menu.addItem((item) =>
 					item
-						.setTitle(`Move to "${label}"`)
+						.setTitle(`移动到“${label}”`)
 						.setChecked(label === current)
 						.onClick(() => {
 							void this.setNoteProperty(entry.file, groupBy, label);
@@ -354,7 +357,7 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 			}
 			menu.addItem((item) =>
 				item
-					.setTitle('Remove value')
+					.setTitle('清除分组值')
 					.setIcon('eraser')
 					.onClick(() => {
 						void this.setNoteProperty(entry.file, groupBy, null);

@@ -4,6 +4,11 @@
 
 ![Screenshot](assets/screenshot.png)
 
+## 0.2.3
+
+- 空日历现在仍显示完整月视图，可直接点击日期创建第一篇带日期的笔记。
+- 看板、日历、时间线、关联、画廊及属性检查器的主要界面和视图设置完成中文化。
+
 ## Features
 
 - **Board** — Linear-style kanban. Group notes by any property (status, priority, assignee…), drag cards between columns, define column order and always-visible columns.

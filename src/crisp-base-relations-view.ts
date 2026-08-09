@@ -104,7 +104,7 @@ export class CrispBaseRelationsView extends BasesView implements HoverParent {
 			const empty = this.containerEl.createDiv({ cls: 'lb-empty' });
 			empty.createDiv({
 				cls: 'lb-empty-hint',
-				text: 'No relations found. Add wikilinks between notes, or set a "Link property" in the view settings.',
+				text: '没有找到关联。请在笔记间添加双链，或在视图设置中选择“链接属性”。',
 			});
 			return;
 		}
@@ -113,9 +113,9 @@ export class CrispBaseRelationsView extends BasesView implements HoverParent {
 		const table = content.createDiv({ cls: 'cc-rel-table' });
 
 		const header = table.createDiv({ cls: 'cc-rel-row cc-rel-header' });
-		header.createDiv({ cls: 'cc-rel-note', text: 'Note' });
-		header.createDiv({ cls: 'cc-rel-cell', text: 'Outgoing' });
-		header.createDiv({ cls: 'cc-rel-cell', text: 'Incoming' });
+		header.createDiv({ cls: 'cc-rel-note', text: '笔记' });
+		header.createDiv({ cls: 'cc-rel-cell', text: '传出' });
+		header.createDiv({ cls: 'cc-rel-cell', text: '传入' });
 
 		for (const row of visibleRows) {
 			const rowEl = table.createDiv({ cls: 'cc-rel-row' });
@@ -176,7 +176,7 @@ export class CrispBaseRelationsView extends BasesView implements HoverParent {
 		});
 		const newNoteButton = toolbar.createEl('button', { cls: 'lb-button' });
 		setIcon(newNoteButton, 'plus');
-		newNoteButton.createSpan({ text: 'New note' });
+		newNoteButton.createSpan({ text: '新建笔记' });
 		newNoteButton.addEventListener('click', () => {
 			this.createNote();
 		});

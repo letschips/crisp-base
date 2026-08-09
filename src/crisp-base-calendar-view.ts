@@ -57,14 +57,12 @@ export class CrispBaseCalendarView extends BasesView implements HoverParent {
 
 		const dateProperty = this.resolveDateProperty();
 		const entriesByDay = new Map<string, BasesEntry[]>();
-		let parsedAny = false;
 		for (const entry of this.data.data) {
 			if (!dateProperty) break;
 			const value = entry.getValue(dateProperty);
 			if (!value || !value.isTruthy()) continue;
 			const iso = extractISODate(value.toString());
 			if (!iso) continue;
-			parsedAny = true;
 			const list = entriesByDay.get(iso) ?? [];
 			list.push(entry);
 		entriesByDay.set(iso, list);
@@ -73,16 +71,7 @@ export class CrispBaseCalendarView extends BasesView implements HoverParent {
 		if (!dateProperty) {
 			this.renderToolbar(dateProperty);
 			this.renderHint(
-				'Choose a "Date property" in the view settings to show notes on the calendar.',
-			);
-			return;
-		}
-		if (!parsedAny) {
-			this.renderToolbar(dateProperty);
-			this.renderHint(
-				'No notes with a valid date were found. Add dates to the "' +
-					this.config.getDisplayName(dateProperty) +
-					'" property or pick a different property.',
+				'请先在视图设置中选择“日期属性”，再在日历中显示或新建笔记。',
 			);
 			return;
 		}
@@ -190,7 +179,7 @@ export class CrispBaseCalendarView extends BasesView implements HoverParent {
 
 		const todayButton = toolbar.createEl('button', {
 			cls: 'lb-button',
-			text: 'Today',
+			text: '今天',
 		});
 		todayButton.addEventListener('click', () => {
 			const now = new Date();
@@ -201,7 +190,7 @@ export class CrispBaseCalendarView extends BasesView implements HoverParent {
 
 		const newNoteButton = toolbar.createEl('button', { cls: 'lb-button' });
 		setIcon(newNoteButton, 'plus');
-		newNoteButton.createSpan({ text: 'New note' });
+		newNoteButton.createSpan({ text: '新建笔记' });
 		newNoteButton.addEventListener('click', () => {
 			this.createNote();
 		});
@@ -210,7 +199,7 @@ export class CrispBaseCalendarView extends BasesView implements HoverParent {
 			toolbar.createDiv({
 				cls: 'cc-date-prop',
 				text: this.config.getDisplayName(dateProperty),
-				attr: { title: 'Calendar date property' },
+				attr: { title: '日历日期属性' },
 			});
 		}
 	}

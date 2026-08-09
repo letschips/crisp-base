@@ -81,7 +81,7 @@ export class CrispBaseTimelineView extends BasesView implements HoverParent {
 		const startProperty = this.resolveStartProperty();
 		if (!startProperty) {
 			this.renderHint(
-				'Choose a "Start date property" in the view settings to show notes on the timeline.',
+				'请先在视图设置中选择“开始日期属性”，再在时间线中显示笔记。',
 			);
 			return;
 		}
@@ -111,9 +111,9 @@ export class CrispBaseTimelineView extends BasesView implements HoverParent {
 
 		if (items.length === 0) {
 			this.renderHint(
-				'No notes with a valid start date were found. Add dates to the "' +
+				'没有找到有效的开始日期。请为“' +
 					this.config.getDisplayName(startProperty) +
-					'" property or pick a different property.',
+					'”属性补充日期，或改用其他属性。',
 			);
 			return;
 		}
@@ -134,10 +134,10 @@ export class CrispBaseTimelineView extends BasesView implements HoverParent {
 
 		const lanes = new Map<string, TimelineItem[]>();
 		for (const item of items) {
-			let label = 'All';
+			let label = '全部';
 			if (groupBy) {
 				const value = item.entry.getValue(groupBy);
-				label = value && value.isTruthy() ? value.toString() : 'No value';
+				label = value && value.isTruthy() ? value.toString() : '无值';
 			}
 			const list = lanes.get(label) ?? [];
 			list.push(item);
@@ -304,7 +304,7 @@ export class CrispBaseTimelineView extends BasesView implements HoverParent {
 		});
 		const newNoteButton = toolbar.createEl('button', { cls: 'lb-button' });
 		setIcon(newNoteButton, 'plus');
-		newNoteButton.createSpan({ text: 'New note' });
+		newNoteButton.createSpan({ text: '新建笔记' });
 		newNoteButton.addEventListener('click', () => {
 			this.createNote();
 		});

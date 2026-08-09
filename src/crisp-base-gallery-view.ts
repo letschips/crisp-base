@@ -70,7 +70,7 @@ export class CrispBaseGalleryView extends BasesView implements HoverParent {
 			const empty = this.containerEl.createDiv({ cls: 'lb-empty' });
 			empty.createDiv({
 				cls: 'lb-empty-hint',
-				text: 'No notes match this base yet.',
+				text: '当前 Base 还没有匹配的笔记。',
 			});
 			return;
 		}
@@ -107,7 +107,7 @@ export class CrispBaseGalleryView extends BasesView implements HoverParent {
 		});
 		const newNoteButton = toolbar.createEl('button', { cls: 'lb-button' });
 		setIcon(newNoteButton, 'plus');
-		newNoteButton.createSpan({ text: 'New note' });
+		newNoteButton.createSpan({ text: '新建笔记' });
 		newNoteButton.addEventListener('click', () => {
 			this.createNote();
 		});

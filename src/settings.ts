@@ -95,7 +95,7 @@ export class CrispBaseSettingTab extends PluginSettingTab {
 		const about = containerEl.createDiv({ cls: 'cb-about' });
 		about.createEl('h3', {
 			cls: 'cb-about-title',
-			text: 'About Crisp Base',
+			text: '关于 Crisp Base',
 		});
 		about.createEl('p', {
 			cls: 'cb-about-description',
