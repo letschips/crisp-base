@@ -952,6 +952,23 @@ body.theme-dark .lb-card {
 	-webkit-box-orient: vertical;
 }
 
+.cc-gallery-card.is-text-only {
+	min-height: 86px;
+	justify-content: space-between;
+}
+
+.cc-gallery-card.is-text-only .cc-gallery-body {
+	padding: 12px 12px 10px;
+	height: 100%;
+	justify-content: space-between;
+}
+
+.cc-gallery-card.is-text-only .cc-gallery-card-title {
+	font-size: 13.5px;
+	line-height: 1.45;
+	-webkit-line-clamp: 3;
+}
+
 /* ------------------------------------------------------------------ */
 /* License                                                            */
 /* ------------------------------------------------------------------ */

@@ -222,6 +222,12 @@ export default class CrispBasePlugin extends Plugin {
 							filter: (propertyId) =>
 								parsePropertyId(propertyId).type === 'note',
 						},
+						{
+							type: 'toggle',
+							key: 'gallery.hideEmptyCover',
+							displayName: '隐藏无封面占位框',
+							default: true,
+						},
 					],
 				},
 			],

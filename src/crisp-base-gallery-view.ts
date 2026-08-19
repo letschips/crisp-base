@@ -10,6 +10,10 @@ import {
 	TFile,
 } from 'obsidian';
 import { setIcon } from 'obsidian';
+import {
+	hideBrokenCover,
+	parseCoverCandidate,
+} from './gallery-cover-utils';
 import { renderPropertyInspector } from './inspector';
 import {
 	isLicensed,
@@ -30,6 +34,14 @@ const IMAGE_EXTENSIONS = new Set([
 	'avif',
 	'bmp',
 ]);
+
+function isImageExtension(ext: string): boolean {
+	return IMAGE_EXTENSIONS.has(ext.toLowerCase().replace(/^\./, ''));
+}
+
+type CoverSource =
+	| { kind: 'file'; file: TFile }
+	| { kind: 'url'; url: string };
 
 interface CardProperty {
 	id: BasesPropertyId;
@@ -113,6 +125,10 @@ export class CrispBaseGalleryView extends BasesView implements HoverParent {
 		});
 	}
 
+	private shouldHideEmptyCover(): boolean {
+		return this.config.get('gallery.hideEmptyCover') !== false;
+	}
+
 	private renderCard(grid: HTMLElement, entry: BasesEntry): void {
 		const card = grid.createDiv({ cls: 'cc-gallery-card' });
 		if (entry.file.path === this.selectedPath) {
@@ -133,8 +149,13 @@ export class CrispBaseGalleryView extends BasesView implements HoverParent {
 			});
 		});
 
+		const coverSource = this.resolveCoverSource(entry);
 		const cover = card.createDiv({ cls: 'cc-gallery-cover' });
-		this.renderCover(cover, entry);
+		const rendered = this.renderCover(cover, entry, coverSource);
+		if (!rendered) {
+			cover.remove();
+			card.addClass('is-text-only');
+		}
 
 		const body = card.createDiv({ cls: 'cc-gallery-body' });
 		body.createDiv({
@@ -157,26 +178,50 @@ export class CrispBaseGalleryView extends BasesView implements HoverParent {
 		}
 	}
 
-	private renderCover(cover: HTMLElement, entry: BasesEntry): void {
-		const imageFile = this.resolveCoverFile(entry);
-		if (!imageFile) {
+	private renderCover(
+		cover: HTMLElement,
+		entry: BasesEntry,
+		source: CoverSource | null,
+	): boolean {
+		if (!source) {
+			if (this.shouldHideEmptyCover()) {
+				return false;
+			}
 			cover.addClass('is-placeholder');
 			const icon = cover.createDiv({ cls: 'cc-gallery-cover-icon' });
 			setIcon(icon, 'image-off');
-			return;
+			return true;
 		}
+
 		const img = cover.createEl('img');
-		img.src = this.app.vault.getResourcePath(imageFile);
+		img.src =
+			source.kind === 'file'
+				? this.app.vault.getResourcePath(source.file)
+				: source.url;
 		img.alt = entry.file.basename;
+		img.loading = 'lazy';
+
 		img.addEventListener('error', () => {
 			img.remove();
-			cover.addClass('is-placeholder');
-			const icon = cover.createDiv({ cls: 'cc-gallery-cover-icon' });
-			setIcon(icon, 'image-off');
+			if (this.shouldHideEmptyCover()) {
+				hideBrokenCover(cover);
+			} else {
+				cover.addClass('is-placeholder');
+				const icon = cover.createDiv({ cls: 'cc-gallery-cover-icon' });
+				setIcon(icon, 'image-off');
+			}
 		});
+
+		return true;
 	}
 
-	private resolveCoverFile(entry: BasesEntry): TFile | null {
+	private resolveCoverSource(entry: BasesEntry): CoverSource | null {
+		// 1. If entry itself is an image file (e.g. svg, png in folder queries)
+		if (entry.file instanceof TFile && isImageExtension(entry.file.extension)) {
+			return { kind: 'file', file: entry.file };
+		}
+
+		// 2. Explicit or fallback Frontmatter cover property
 		const coverProperty = this.resolveCoverProperty();
 		if (coverProperty) {
 			const { name } = parsePropertyId(coverProperty);
@@ -184,34 +229,41 @@ export class CrispBaseGalleryView extends BasesView implements HoverParent {
 				this.app.metadataCache.getFileCache(entry.file)?.frontmatter;
 			const raw = frontmatter?.[name];
 			for (const value of Array.isArray(raw) ? raw : raw != null ? [raw] : []) {
-				const text = String(value).trim();
-				const match = text.match(/^\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|[^\]]*)?\]\]$/);
-				const linktext = match ? match[1].trim() : text;
-				const dest = this.app.metadataCache.getFirstLinkpathDest(
-					linktext,
-					entry.file.path,
-				);
-				const file = dest ?? this.app.vault.getFileByPath(linktext);
-				if (
-					file instanceof TFile &&
-					IMAGE_EXTENSIONS.has(file.extension.toLowerCase())
-				) {
-					return file;
+				const candidate = parseCoverCandidate(value);
+				if (!candidate) continue;
+				if (candidate.kind === 'url') {
+					return { kind: 'url', url: candidate.value };
+				}
+				const file = this.resolvePathToImageFile(candidate.value, entry.file.path);
+				if (file) {
+					return { kind: 'file', file };
 				}
 			}
 		}
+
+		// 3. First embedded image in note body
 		const embeds = this.app.metadataCache.getFileCache(entry.file)?.embeds ?? [];
 		for (const embed of embeds) {
-			const dest = this.app.metadataCache.getFirstLinkpathDest(
-				embed.link,
-				entry.file.path,
-			);
-			if (
-				dest instanceof TFile &&
-				IMAGE_EXTENSIONS.has(dest.extension.toLowerCase())
-			) {
-				return dest;
+			const candidate = parseCoverCandidate(embed.link);
+			if (!candidate) continue;
+			if (candidate.kind === 'url') {
+				return { kind: 'url', url: candidate.value };
 			}
+			const file = this.resolvePathToImageFile(candidate.value, entry.file.path);
+			if (file) {
+				return { kind: 'file', file };
+			}
+		}
+
+		return null;
+	}
+
+	private resolvePathToImageFile(linktext: string, sourcePath: string): TFile | null {
+		const dest =
+			this.app.metadataCache.getFirstLinkpathDest(linktext, sourcePath) ??
+			this.app.vault.getFileByPath(linktext);
+		if (dest instanceof TFile && isImageExtension(dest.extension)) {
+			return dest;
 		}
 		return null;
 	}
