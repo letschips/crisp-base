@@ -1,7 +1,7 @@
 import { requestUrl } from 'obsidian';
 
 export const LICENSE_SERVER_URL =
-	'https://crisp-license.helloherve-xsn.workers.dev/api/verify-device';
+	'https://license.letschips.xyz/api/verify-device';
 
 export const LICENSE_PRODUCTS = [
 	'Crisp Suite',
@@ -153,17 +153,22 @@ export async function verifyLicense(
 		}
 
 		try {
-			const response = await request({
-				url: LICENSE_SERVER_URL,
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					licenseCode: trimmed,
-					deviceId: deviceId(),
-					action: 'activate',
-					pluginId: pluginFeature,
+			const response = await Promise.race([
+				request({
+					url: LICENSE_SERVER_URL,
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						licenseCode: trimmed,
+						deviceId: deviceId(),
+						action: 'activate',
+						pluginId: pluginFeature,
+					}),
 				}),
-			});
+				new Promise<never>((_, reject) =>
+					setTimeout(() => reject(new Error('Crisp license check timeout')), 2500),
+				),
+			]);
 			const json = response.json as {
 				valid?: boolean;
 				reason?: string;
