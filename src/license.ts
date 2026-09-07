@@ -47,6 +47,7 @@ interface VerifyOptions {
 		method: string;
 		headers: Record<string, string>;
 		body: string;
+		throw?: boolean;
 	}) => Promise<{ status: number; json?: unknown }>;
 }
 
@@ -102,7 +103,7 @@ export async function verifyLicense(
 	options: VerifyOptions = {},
 ): Promise<VerifyResult> {
 	const now = options.now ?? (() => Date.now());
-	const request = options.request ?? requestUrl;
+	const request = options.request ?? ((reqOptions) => requestUrl({ ...reqOptions, throw: false }));
 	const deviceId = options.getDeviceId ?? getDeviceId;
 	const publicKeyPem = options.publicKeyPem ?? LICENSE_PUBLIC_KEY_PEM;
 	const trimmed = code.trim();
@@ -164,21 +165,40 @@ export async function verifyLicense(
 						action: 'activate',
 						pluginId: pluginFeature,
 					}),
+					throw: false,
 				}),
 				new Promise<never>((_, reject) =>
 					setTimeout(() => reject(new Error('Crisp license check timeout')), 2500),
 				),
 			]);
-			const json = response.json as {
-				valid?: boolean;
-				reason?: string;
-				message?: string;
-			};
-			if (json && typeof json.valid === 'boolean') {
-				if (json.valid === false) {
-					return { valid: false, reason: json.reason ?? '设备数已达上限' };
-				}
-				return { valid: true, payload, message: json.message ?? null };
+			let cloudResult: { valid?: boolean; reason?: string; message?: string } | null = null;
+			try {
+				cloudResult = response.json as { valid?: boolean; reason?: string; message?: string };
+			} catch {
+				cloudResult = null;
+			}
+
+			// 1. 明确的服务端业务拒绝（200/400/401/403 且带有明确的 valid: false）
+			const isAuthDenial =
+				(response.status === 200 || response.status === 400 || response.status === 401 || response.status === 403) &&
+				cloudResult !== null &&
+				cloudResult.valid === false;
+
+			if (isAuthDenial) {
+				return {
+					valid: false,
+					reason: cloudResult?.reason || '授权已被服务端拒绝或设备数已达上限',
+				};
+			}
+
+			// 2. 服务端明确批准（200 OK 且 valid: true）
+			if (response.status === 200 && cloudResult && cloudResult.valid === true) {
+				return { valid: true, payload, message: cloudResult.message ?? null };
+			}
+
+			// 其余情况（404/408/429/5xx、网关 HTML 报错、JSON 异常等）均视为服务不可用，降级离线可用
+			if (response.status >= 400) {
+				console.warn(`[crisp-base] License server unavailable (status ${response.status}), offline fallback`);
 			}
 		} catch {
 			console.debug('[crisp-base] license online check offline fallback');
