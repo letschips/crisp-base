@@ -67,4 +67,4 @@ npm run release  # build and zip runtime-only artifacts to ~/Desktop/crisp-base-
 
 ## License
 
-MIT © letschips
+Crisp Proprietary License © 2026 letschips. See [LICENSE](LICENSE).
