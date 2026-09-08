@@ -9,7 +9,7 @@
     "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
     "deploy": "node scripts/deploy.mjs",
     "release": "node scripts/release.mjs",
-    "test": "vitest run",
+    "test": "vitest run && node --test tests/license-http.mjs",
     "lint": "eslint src tests scripts *.ts *.mjs --no-error-on-unmatched-pattern",
     "check": "npm run test && npm run lint && npm run build"
   },
