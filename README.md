@@ -41,6 +41,22 @@ Download the latest `crisp-base-<version>.zip` from Releases, extract `main.js`,
 3. In the view menu, switch the layout to **Crisp Base Board / Calendar / Timeline / Relations / Gallery**.
 4. Configure per-view options in the view settings (grouping property, date properties, column order, …).
 
+### Writing a base file by hand
+
+View options are stored as **flat dotted keys** directly under the view — never as a nested map. The view settings panel writes them this way, so a hand-authored base has to match:
+
+```yaml
+views:
+  - type: crisp-base-board
+    name: Board
+    board.groupBy: note.status        # not `board:` followed by a `groupBy:` line
+  - type: crisp-base-calendar
+    name: Calendar
+    calendar.dateProperty: note.due
+```
+
+Every option follows `<view>.<option>`: `board.groupBy`, `board.extraColumns`, `board.cardLimit`, `board.columnOrder`, `calendar.dateProperty`, `calendar.weekStart`, `timeline.startDate`, `timeline.endDate`, `timeline.groupBy`, `timeline.scale`, `relations.linkProperty`, `relations.groupBy`, `relations.showBacklinks`, `relations.onlyRelated`, `gallery.coverProperty`, `gallery.hideEmptyCover`. A nested map (`board:` → `groupBy:`) parses without an error, but the option is ignored and the view silently falls back to its automatic property detection.
+
 ## Development
 
 ```bash
