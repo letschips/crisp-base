@@ -1,4 +1,5 @@
-import { Plugin, parsePropertyId } from 'obsidian';
+import { Notice, Plugin, parsePropertyId } from 'obsidian';
+import { preserveUnreadableData } from './data-safety';
 import { PLUGIN_FEATURE, verifyLicense } from './license';
 import {
 	clearLicense,
@@ -25,6 +26,27 @@ import {
 } from './crisp-base-gallery-view';
 
 export default class CrispBasePlugin extends Plugin {
+
+	private dataWriteBlocked = false;
+
+	// Never overwrite a data.json that could not be read and could not be backed up either.
+	async saveData(data: unknown): Promise<void> {
+		if (this.dataWriteBlocked) return;
+		await super.saveData(data);
+	}
+
+	// loadData() yields undefined when data.json exists but cannot be read; keep a copy before defaults take over.
+	private async protectUnreadableData(raw: unknown): Promise<void> {
+		if (raw !== undefined) return;
+		const result = await preserveUnreadableData(this.app.vault.adapter, `${this.manifest.dir}/data.json`);
+		if (result.state === 'preserved') {
+			new Notice(`Crisp Base 的设置文件无法读取，已备份为 ${result.backupPath.split('/').pop()} 并恢复默认设置。`, 12000);
+		} else if (result.state === 'failed') {
+			this.dataWriteBlocked = true;
+			console.error('Crisp Base could not back up unreadable data.json', result.error);
+			new Notice('Crisp Base 的设置文件无法读取，也无法备份。为保护原文件，本次运行不会保存设置。', 0);
+		}
+	}
 	async onload() {
 		this.addSettingTab(new CrispBaseSettingTab(this.app, this));
 
@@ -234,6 +256,7 @@ export default class CrispBasePlugin extends Plugin {
 		});
 
 		const data = (await this.loadData()) as { licenseCode?: string } | undefined;
+		await this.protectUnreadableData(data);
 		if (data?.licenseCode) {
 			// Local Ed25519 + expiry verification only — fast, no network.
 			const local = await verifyLicense(data.licenseCode, PLUGIN_FEATURE, {
