@@ -4,6 +4,14 @@
 
 ![Screenshot](assets/screenshot.png)
 
+## 0.3.0
+
+- 检查器按属性类型显示编辑控件：日期 / 日期时间选择器、数字、勾选、标签式列表（回车添加，候选来自当前 Base）。值与属性类型不符时只显示原文和提示，不会自动转换。
+- 视图显示的属性即使笔记里还没有，也能在检查器里直接填写。
+- 选项颜色：在列标题右键或检查器下拉里给选项选颜色，按属性名全库共用，看板、画廊、时间线、关联都会跟随。
+- 看板每列底部新增「新建」；可在视图设置里指定新建模板（`board.template`），模板属性只补空值，正文写入新笔记。
+- 检查器下方显示笔记正文的只读预览，可在右侧分栏打开。
+
 ## 0.2.3
 
 - 空日历现在仍显示完整月视图，可直接点击日期创建第一篇带日期的笔记。
@@ -16,7 +24,8 @@
 - **Timeline** — Gantt-style bars from start/end date properties, lanes grouped by any property, today marker, zoom levels.
 - **Relations** — aggregate wikilinks and backlinks between the notes in a base; follow relations from chip to chip.
 - **Gallery** — cover-image grid (cover property or embedded images) with property chips.
-- **Inspector** — every view shares a right-side editable property panel (text / number / boolean / list), writing back to note frontmatter.
+- **Inspector** — every view shares a right-side property panel with typed editors (date, datetime, number, checkbox, list / tags, colored select) and a read-only body preview, writing back to note frontmatter.
+- **Option colors** — pick a color per option value (right-click a column header, or from the inspector); colors are shared by property name across the vault.
 - **Filters, sort, formulas and summaries** come from the native Bases toolbar — Crisp Base is a rendering layer on top of Bases.
 
 ## Requirements
@@ -55,7 +64,7 @@ views:
     calendar.dateProperty: note.due
 ```
 
-Every option follows `<view>.<option>`: `board.groupBy`, `board.extraColumns`, `board.cardLimit`, `board.columnOrder`, `calendar.dateProperty`, `calendar.weekStart`, `timeline.startDate`, `timeline.endDate`, `timeline.groupBy`, `timeline.scale`, `relations.linkProperty`, `relations.groupBy`, `relations.showBacklinks`, `relations.onlyRelated`, `gallery.coverProperty`, `gallery.hideEmptyCover`. A nested map (`board:` → `groupBy:`) parses without an error, but the option is ignored and the view silently falls back to its automatic property detection.
+Every option follows `<view>.<option>`: `board.groupBy`, `board.extraColumns`, `board.cardLimit`, `board.columnOrder`, `board.template`, `calendar.dateProperty`, `calendar.weekStart`, `timeline.startDate`, `timeline.endDate`, `timeline.groupBy`, `timeline.scale`, `relations.linkProperty`, `relations.groupBy`, `relations.showBacklinks`, `relations.onlyRelated`, `gallery.coverProperty`, `gallery.hideEmptyCover`. A nested map (`board:` → `groupBy:`) parses without an error, but the option is ignored and the view silently falls back to its automatic property detection.
 
 ## Development
 

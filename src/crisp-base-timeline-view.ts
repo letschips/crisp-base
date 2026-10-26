@@ -10,7 +10,7 @@ import {
 } from 'obsidian';
 import { setIcon } from 'obsidian';
 import { renderPropertyInspector } from './inspector';
-import { accentFor } from './accents';
+import { onOptionColorsChanged, optionAccent } from './option-colors';
 import {
 	isLicensed,
 	onLicenseChanged,
@@ -57,11 +57,14 @@ export class CrispBaseTimelineView extends BasesView implements HoverParent {
 	private containerEl: HTMLElement;
 	private selectedPath: string | null = null;
 	private knownLabels: string[] = [];
+	/** Note property behind the lane labels, for option colors. */
+	private laneProperty: string | null = null;
 
 	constructor(controller: QueryController, parentEl: HTMLElement) {
 		super(controller);
 		this.containerEl = parentEl.createDiv({ cls: 'lb-view cc-timeline' });
 		onLicenseChanged(this.app, this, () => this.render());
+		onOptionColorsChanged(this.app, this, () => this.render());
 	}
 
 	onDataUpdated(): void {
@@ -88,6 +91,8 @@ export class CrispBaseTimelineView extends BasesView implements HoverParent {
 
 		const endProperty = this.resolveEndProperty();
 		const groupBy = this.resolveGroupBy();
+		this.laneProperty =
+			groupBy && parsePropertyId(groupBy).type === 'note' ? parsePropertyId(groupBy).name : null;
 		const pxPerDay = this.getPxPerDay();
 
 		const items: TimelineItem[] = [];
@@ -172,6 +177,8 @@ export class CrispBaseTimelineView extends BasesView implements HoverParent {
 			renderPropertyInspector(content, selected, {
 				app: this.app,
 				config: this.config,
+				host: this,
+				entries: this.data.data,
 				groupBy,
 				knownLabels: this.knownLabels,
 				onChanged: () => this.render(),
@@ -232,7 +239,7 @@ export class CrispBaseTimelineView extends BasesView implements HoverParent {
 		minISO: string,
 		pxPerDay: number,
 	): void {
-		const accent = accentFor(label);
+		const accent = optionAccent(this.laneProperty, label);
 		const lane = body.createDiv({ cls: 'cc-tl-lane' });
 		lane.style.setProperty('--cc-tl-accent', accent);
 

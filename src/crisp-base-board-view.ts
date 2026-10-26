@@ -3,18 +3,21 @@ import type {
 	BasesPropertyId,
 	HoverParent,
 	HoverPopover,
-	QueryController,
-	TFile} from 'obsidian';
+	QueryController} from 'obsidian';
 import {
 	BasesView,
 	Keymap,
 	Menu,
+	Notice,
+	TFile,
 	parsePropertyId
 } from 'obsidian';
 import { setIcon } from 'obsidian';
-import { renderPropertyInspector } from './inspector';
+import { renderPropertyInspector, showOptionColorMenu } from './inspector';
 import { accentFor } from './accents';
+import { applyOptionColor, onOptionColorsChanged, optionAccent } from './option-colors';
 import { clampCardLimit, orderColumns } from './board-utils';
+import { mergeTemplateFrontmatter, parseTemplatePath, stripFrontmatter } from './template-utils';
 import {
 	isLicensed,
 	onLicenseChanged,
@@ -29,6 +32,11 @@ interface CardProperty {
 	displayName: string;
 }
 
+interface NoteTemplate {
+	frontmatter: Record<string, unknown> | undefined;
+	body: string;
+}
+
 export class CrispBaseBoardView extends BasesView implements HoverParent {
 	readonly type = CRISP_BASE_BOARD_VIEW_TYPE;
 	hoverPopover: HoverPopover | null = null;
@@ -41,6 +49,7 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 		super(controller);
 		this.containerEl = parentEl.createDiv({ cls: 'lb-view' });
 		onLicenseChanged(this.app, this, () => this.render());
+		onOptionColorsChanged(this.app, this, () => this.render());
 	}
 
 	onDataUpdated(): void {
@@ -101,6 +110,8 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 			renderPropertyInspector(content, selected, {
 				app: this.app,
 				config: this.config,
+				host: this,
+				entries: this.data.data,
 				groupBy,
 				knownLabels: this.knownLabels,
 				onChanged: () => this.render(),
@@ -148,32 +159,8 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 		entries: BasesEntry[],
 		limit: number,
 	): void {
-		const visible = entries.slice(0, limit);
-		const column = board.createDiv({ cls: 'lb-column' });
-		column.style.setProperty('--lb-accent', accentFor(label));
-		this.attachDropTarget(column, groupBy, label);
-
-		const header = column.createDiv({ cls: 'lb-column-header' });
-		header.createDiv({ cls: 'lb-column-dot' });
-		header.createDiv({
-			cls: 'lb-column-title',
-			text: label === 'No value' ? '无值' : label,
-		});
-		header.createDiv({ cls: 'lb-column-count', text: String(entries.length) });
-		const addButton = header.createDiv({ cls: 'lb-column-add' });
-		setIcon(addButton, 'plus');
-		addButton.addEventListener('click', () => {
-			this.createNote((frontmatter) => {
-				if (!groupBy || label === 'No value') return;
-				const { name, type } = parsePropertyId(groupBy);
-				if (type === 'note') {
-					frontmatter[name] = label;
-				}
-			});
-		});
-
-		const cards = column.createDiv({ cls: 'lb-column-cards' });
-		for (const entry of visible) {
+		const cards = this.renderColumnShell(board, groupBy, label, entries.length);
+		for (const entry of entries.slice(0, limit)) {
 			this.renderCard(cards, entry, groupBy);
 		}
 		if (entries.length > limit) {
@@ -181,11 +168,12 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 				cls: 'lb-column-more',
 				text: `另有 ${entries.length - limit} 张`,
 			});
-		more.addEventListener('click', () => {
-			this.config.set('board.cardLimit', limit + Math.max(100, limit));
-			this.render();
+			more.addEventListener('click', () => {
+				this.config.set('board.cardLimit', limit + Math.max(100, limit));
+				this.render();
 			});
 		}
+		this.renderColumnNewRow(cards, groupBy, label);
 	}
 
 	private renderEmptyColumn(
@@ -194,26 +182,67 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 		label: string,
 	): void {
 		if (!label) return;
+		const cards = this.renderColumnShell(board, groupBy, label, 0);
+		this.renderColumnNewRow(cards, groupBy, label);
+	}
+
+	/** Column frame with header; returns the card container. */
+	private renderColumnShell(
+		board: HTMLElement,
+		groupBy: BasesPropertyId | null,
+		label: string,
+		count: number,
+	): HTMLElement {
+		const property = this.groupProperty(groupBy);
 		const column = board.createDiv({ cls: 'lb-column' });
-		column.style.setProperty('--lb-accent', accentFor(label));
+		column.style.setProperty(
+			'--lb-accent',
+			label === 'No value' ? accentFor(label) : optionAccent(property, label),
+		);
 		this.attachDropTarget(column, groupBy, label);
 
 		const header = column.createDiv({ cls: 'lb-column-header' });
 		header.createDiv({ cls: 'lb-column-dot' });
-		header.createDiv({ cls: 'lb-column-title', text: label });
-		header.createDiv({ cls: 'lb-column-count', text: '0' });
-		const addButton = header.createDiv({ cls: 'lb-column-add' });
+		header.createDiv({
+			cls: 'lb-column-title',
+			text: label === 'No value' ? '无值' : label,
+		});
+		header.createDiv({ cls: 'lb-column-count', text: String(count) });
+		const addButton = header.createDiv({ cls: 'lb-column-add', attr: { 'aria-label': '在此列新建' } });
 		setIcon(addButton, 'plus');
 		addButton.addEventListener('click', () => {
-			this.createNote((frontmatter) => {
-				if (!groupBy) return;
-				const { name, type } = parsePropertyId(groupBy);
-				if (type === 'note') {
-					frontmatter[name] = label;
-				}
-			});
+			this.createNoteInColumn(groupBy, label);
 		});
-		column.createDiv({ cls: 'lb-column-cards' });
+		if (property && label !== 'No value') {
+			header.addEventListener('contextmenu', (event: MouseEvent) => {
+				event.preventDefault();
+				showOptionColorMenu(event, property, label);
+			});
+		}
+		return column.createDiv({ cls: 'lb-column-cards' });
+	}
+
+	private renderColumnNewRow(
+		cards: HTMLElement,
+		groupBy: BasesPropertyId | null,
+		label: string,
+	): void {
+		const row = cards.createDiv({ cls: 'lb-column-new' });
+		setIcon(row.createSpan({ cls: 'lb-column-new-icon' }), 'plus');
+		row.createSpan({ text: '新建' });
+		row.addEventListener('click', () => {
+			this.createNoteInColumn(groupBy, label);
+		});
+	}
+
+	private createNoteInColumn(groupBy: BasesPropertyId | null, label: string): void {
+		this.createNote((frontmatter) => {
+			if (!groupBy || label === 'No value') return;
+			const { name, type } = parsePropertyId(groupBy);
+			if (type === 'note') {
+				frontmatter[name] = label;
+			}
+		});
 	}
 
 	private renderCard(
@@ -282,6 +311,7 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 					attr: { title: chip.displayName },
 				});
 				chipEl.setText(value.toString());
+				applyOptionColor(chipEl, this.groupProperty(chip.id), value.toString());
 			}
 		}
 	}
@@ -386,6 +416,12 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 		);
 	}
 
+	private groupProperty(propertyId: BasesPropertyId | null): string | null {
+		if (!propertyId) return null;
+		const { type, name } = parsePropertyId(propertyId);
+		return type === 'note' ? name : null;
+	}
+
 	private entryLabel(entry: BasesEntry, groupBy: BasesPropertyId): string {
 		const value = entry.getValue(groupBy);
 		if (!value || !value.isTruthy()) return 'No value';
@@ -438,6 +474,50 @@ export class CrispBaseBoardView extends BasesView implements HoverParent {
 		frontmatterProcessor?: (frontmatter: Record<string, unknown>) => void,
 	): void {
 		if (!requireLicense()) return;
-		void this.createFileForView(undefined, frontmatterProcessor);
+		void this.createNoteFromTemplate(frontmatterProcessor);
+	}
+
+	private async createNoteFromTemplate(
+		frontmatterProcessor?: (frontmatter: Record<string, unknown>) => void,
+	): Promise<void> {
+		const template = await this.loadTemplate();
+		// createFileForView does not return the new file; catch it from the vault's create event.
+		const created: TFile[] = [];
+		const ref = this.app.vault.on('create', (file) => {
+			if (file instanceof TFile && file.extension === 'md') created.push(file);
+		});
+		try {
+			await this.createFileForView(undefined, (frontmatter: Record<string, unknown>) => {
+				frontmatterProcessor?.(frontmatter);
+				mergeTemplateFrontmatter(frontmatter, template?.frontmatter);
+			});
+		} finally {
+			this.app.vault.offref(ref);
+		}
+		const file = created.length === 1 ? created[0] : null;
+		if (!file) return;
+		if (template && template.body.trim() !== '') {
+			await this.app.vault.process(file, (data) =>
+				// Only fill a note that is still empty below its frontmatter.
+				stripFrontmatter(data).trim() === '' ? `${data.replace(/\s*$/, '\n')}${template.body}` : data,
+			);
+		}
+		this.selectedPath = file.path;
+		this.render();
+	}
+
+	private async loadTemplate(): Promise<NoteTemplate | null> {
+		const path = parseTemplatePath(this.config.get('board.template'));
+		if (!path) return null;
+		const file =
+			this.app.metadataCache.getFirstLinkpathDest(path, '') ?? this.app.vault.getFileByPath(path);
+		if (!(file instanceof TFile)) {
+			new Notice(`Crisp Base：找不到模板「${path}」，已按空白笔记新建。`);
+			return null;
+		}
+		const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter as
+			| Record<string, unknown>
+			| undefined;
+		return { frontmatter, body: stripFrontmatter(await this.app.vault.cachedRead(file)) };
 	}
 }

@@ -15,6 +15,7 @@ import {
 	parseCoverCandidate,
 } from './gallery-cover-utils';
 import { renderPropertyInspector } from './inspector';
+import { applyOptionColor, onOptionColorsChanged } from './option-colors';
 import {
 	isLicensed,
 	onLicenseChanged,
@@ -59,6 +60,7 @@ export class CrispBaseGalleryView extends BasesView implements HoverParent {
 		super(controller);
 		this.containerEl = parentEl.createDiv({ cls: 'lb-view cc-gallery' });
 		onLicenseChanged(this.app, this, () => this.render());
+		onOptionColorsChanged(this.app, this, () => this.render());
 	}
 
 	onDataUpdated(): void {
@@ -100,6 +102,8 @@ export class CrispBaseGalleryView extends BasesView implements HoverParent {
 			renderPropertyInspector(content, selected, {
 				app: this.app,
 				config: this.config,
+				host: this,
+				entries: this.data.data,
 				groupBy: null,
 				knownLabels: [],
 				onChanged: () => this.render(),
@@ -174,6 +178,8 @@ export class CrispBaseGalleryView extends BasesView implements HoverParent {
 					attr: { title: chip.displayName },
 				});
 				chipEl.setText(value.toString());
+				const { type, name } = parsePropertyId(chip.id);
+				applyOptionColor(chipEl, type === 'note' ? name : null, value.toString());
 			}
 		}
 	}

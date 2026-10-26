@@ -12,6 +12,7 @@ import {
 import { setIcon } from 'obsidian';
 import { renderPropertyInspector } from './inspector';
 import { accentFor } from './accents';
+import { onOptionColorsChanged, optionAccent } from './option-colors';
 import {
 	isLicensed,
 	onLicenseChanged,
@@ -38,6 +39,7 @@ export class CrispBaseRelationsView extends BasesView implements HoverParent {
 		super(controller);
 		this.containerEl = parentEl.createDiv({ cls: 'lb-view cc-relations' });
 		onLicenseChanged(this.app, this, () => this.render());
+		onOptionColorsChanged(this.app, this, () => this.render());
 	}
 
 	onDataUpdated(): void {
@@ -155,6 +157,8 @@ export class CrispBaseRelationsView extends BasesView implements HoverParent {
 			renderPropertyInspector(content, selected, {
 				app: this.app,
 				config: this.config,
+				host: this,
+				entries: this.data.data,
 				groupBy,
 				knownLabels: this.distinctGroupLabels(entries, groupBy),
 				onChanged: () => this.render(),
@@ -190,7 +194,9 @@ export class CrispBaseRelationsView extends BasesView implements HoverParent {
 		const chip = cell.createDiv({ cls: 'cc-rel-chip' });
 		const value = groupBy ? target.getValue(groupBy) : null;
 		const label = value && value.isTruthy() ? value.toString() : 'No value';
-		chip.style.setProperty('--cc-rel-accent', accentFor(label));
+		const colorProperty =
+			groupBy && parsePropertyId(groupBy).type === 'note' ? parsePropertyId(groupBy).name : null;
+		chip.style.setProperty('--cc-rel-accent', label === 'No value' ? accentFor(label) : optionAccent(colorProperty, label));
 		chip.createDiv({ cls: 'cc-rel-dot' });
 		chip.createSpan({ text: target.file.basename });
 		if (target.file.path === this.selectedPath) {

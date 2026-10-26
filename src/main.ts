@@ -1,11 +1,14 @@
 import { Notice, Plugin, parsePropertyId } from 'obsidian';
-import { preserveUnreadableData } from './data-safety';
+import { preserveUnreadableData, verifyDataWrite } from './data-safety';
 import { PLUGIN_FEATURE, verifyLicense } from './license';
 import {
 	clearLicense,
 	notifyLicenseChanged,
 	setLicense,
 } from './license-state';
+import { initOptionColors } from './option-colors';
+import type { CrispBaseData } from './plugin-data';
+import { normalizePluginData, withOptionColors } from './plugin-data';
 import { CrispBaseSettingTab } from './settings';
 import { CRISP_BASE_BOARD_VIEW_TYPE, CrispBaseBoardView } from './crisp-base-board-view';
 import {
@@ -28,6 +31,24 @@ import {
 export default class CrispBasePlugin extends Plugin {
 
 	private dataWriteBlocked = false;
+	private pluginData: CrispBaseData = {};
+	private saveQueue: Promise<void> = Promise.resolve();
+
+	/** Applies `update` to the latest data and saves; saves run one at a time so none is lost. */
+	updatePluginData(update: (data: CrispBaseData) => CrispBaseData): Promise<void> {
+		const run = this.saveQueue.then(async () => {
+			const next = update(this.pluginData);
+			this.pluginData = next;
+			if (this.dataWriteBlocked) return;
+			await this.saveData(next);
+			await verifyDataWrite(this.app.vault.adapter, `${this.manifest.dir}/data.json`, next);
+		});
+		this.saveQueue = run.catch((error: unknown) => {
+			console.error('Crisp Base could not save data.json', error);
+			new Notice('Crisp Base 设置保存失败，请检查库文件夹是否可写。');
+		});
+		return this.saveQueue;
+	}
 
 	// Never overwrite a data.json that could not be read and could not be backed up either.
 	async saveData(data: unknown): Promise<void> {
@@ -89,6 +110,13 @@ export default class CrispBasePlugin extends Plugin {
 							key: 'board.columnOrder',
 							displayName: '分组顺序',
 							default: [],
+						},
+						{
+							type: 'file',
+							key: 'board.template',
+							displayName: '新建模板（可选）',
+							placeholder: 'Templates/任务.md',
+							filter: (file) => file.extension === 'md',
 						},
 					],
 				},
@@ -255,9 +283,14 @@ export default class CrispBasePlugin extends Plugin {
 			],
 		});
 
-		const data = (await this.loadData()) as { licenseCode?: string } | undefined;
-		await this.protectUnreadableData(data);
-		if (data?.licenseCode) {
+		const raw: unknown = await this.loadData();
+		await this.protectUnreadableData(raw);
+		const data = normalizePluginData(raw);
+		this.pluginData = data;
+		initOptionColors(data.optionColors ?? {}, (map) =>
+			this.updatePluginData((current) => withOptionColors(current, map)),
+		);
+		if (data.licenseCode) {
 			// Local Ed25519 + expiry verification only — fast, no network.
 			const local = await verifyLicense(data.licenseCode, PLUGIN_FEATURE, {
 				skipOnlineCheck: true,

@@ -1,4 +1,4 @@
-import type { App, Plugin} from 'obsidian';
+import type { App } from 'obsidian';
 import { Notice, PluginSettingTab, Setting } from 'obsidian';
 import { PLUGIN_FEATURE, verifyLicense } from './license';
 import {
@@ -8,17 +8,14 @@ import {
 	notifyLicenseChanged,
 	setLicense,
 } from './license-state';
-
-interface CrispBaseData {
-	licenseCode?: string;
-	activatedAt?: number;
-}
+import type CrispBasePlugin from './main';
+import { withLicense, withoutLicense } from './plugin-data';
 
 export class CrispBaseSettingTab extends PluginSettingTab {
 	private code = '';
 	private busy = false;
 
-	constructor(app: App, private readonly plugin: Plugin) {
+	constructor(app: App, private readonly plugin: CrispBasePlugin) {
 		super(app, plugin);
 	}
 
@@ -45,7 +42,7 @@ export class CrispBaseSettingTab extends PluginSettingTab {
 				.addButton((button) =>
 					button.setButtonText('清除激活').onClick(() => {
 						clearLicense();
-						void this.plugin.saveData({});
+						void this.plugin.updatePluginData(withoutLicense);
 						notifyLicenseChanged();
 						this.display();
 					}),
@@ -74,11 +71,10 @@ export class CrispBaseSettingTab extends PluginSettingTab {
 					const result = await verifyLicense(this.code, PLUGIN_FEATURE);
 					if (result.valid && result.payload) {
 						setLicense(true, this.code.trim(), result.payload);
-						const data: CrispBaseData = {
-							licenseCode: this.code.trim(),
-							activatedAt: Date.now(),
-						};
-						await this.plugin.saveData(data);
+						const code = this.code.trim();
+						await this.plugin.updatePluginData((data) =>
+							withLicense(data, code, Date.now()),
+						);
 						new Notice('Crisp Base 已激活');
 						notifyLicenseChanged();
 					} else {

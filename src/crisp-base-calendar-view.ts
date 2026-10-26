@@ -10,6 +10,7 @@ import {
 } from 'obsidian';
 import { setIcon } from 'obsidian';
 import { renderPropertyInspector } from './inspector';
+import { onOptionColorsChanged } from './option-colors';
 import { extractISODate, toISODate } from './dates';
 import {
 	isLicensed,
@@ -39,6 +40,7 @@ export class CrispBaseCalendarView extends BasesView implements HoverParent {
 		this.cursorMonth = now.getMonth();
 		this.containerEl = parentEl.createDiv({ cls: 'lb-view cc-calendar' });
 		onLicenseChanged(this.app, this, () => this.render());
+		onOptionColorsChanged(this.app, this, () => this.render());
 	}
 
 	onDataUpdated(): void {
@@ -140,6 +142,8 @@ export class CrispBaseCalendarView extends BasesView implements HoverParent {
 			renderPropertyInspector(content, selected, {
 				app: this.app,
 				config: this.config,
+				host: this,
+				entries: this.data.data,
 				groupBy: null,
 				knownLabels: [],
 				onChanged: () => this.render(),
