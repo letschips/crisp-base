@@ -56,6 +56,19 @@ export default class CrispBasePlugin extends Plugin {
 		await super.saveData(data);
 	}
 
+	// data.json changed on disk (iCloud / Obsidian Sync from another device): adopt it, so the next save
+	// does not overwrite that device's option colors. The license state is left as verified at load.
+	async onExternalSettingsChange(): Promise<void> {
+		await this.saveQueue;
+		const raw: unknown = await this.loadData();
+		if (raw === undefined || raw === null) return;
+		const data = normalizePluginData(raw);
+		this.pluginData = data;
+		initOptionColors(data.optionColors ?? {}, (map) =>
+			this.updatePluginData((current) => withOptionColors(current, map)),
+		);
+	}
+
 	// loadData() yields undefined when data.json exists but cannot be read; keep a copy before defaults take over.
 	private async protectUnreadableData(raw: unknown): Promise<void> {
 		if (raw !== undefined) return;

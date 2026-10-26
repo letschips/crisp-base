@@ -34,6 +34,7 @@ import {
 	resolvePropertyKind,
 	toDateInput,
 } from './property-types';
+import { FocusMemory } from './focus-memory';
 import { stripFrontmatter } from './template-utils';
 
 export interface InspectorOptions {
@@ -74,13 +75,16 @@ interface PreviewCache {
 // Views re-render on every data update; keep the rendered body so the preview neither flickers
 // nor re-renders while the note's body is unchanged.
 const previewCache = new WeakMap<Component, PreviewCache>();
-// Property whose input should regain focus after the re-renders its own edit caused (the write
-// re-renders once directly and again when Bases reports the change).
-const pendingFocus = new WeakMap<Component, { key: string; until: number }>();
-const FOCUS_WINDOW_MS = 1500;
+// The field being edited in each host's inspector, kept across re-renders.
+const focusMemories = new WeakMap<Component, FocusMemory>();
 
-function keepFocus(host: Component, key: string): void {
-	pendingFocus.set(host, { key, until: Date.now() + FOCUS_WINDOW_MS });
+function focusMemory(host: Component): FocusMemory {
+	let memory = focusMemories.get(host);
+	if (!memory) {
+		memory = new FocusMemory();
+		focusMemories.set(host, memory);
+	}
+	return memory;
 }
 // The preview section currently in the DOM for each host.
 const liveSection = new WeakMap<Component, HTMLElement>();
@@ -114,9 +118,23 @@ export function renderPropertyInspector(
 	const fields = inspector.createDiv({ cls: 'lb-inspector-fields' });
 	const ctx: FieldContext = { ...options, file: entry.file };
 
+	if (entry.file.extension !== 'md') {
+		// Only Markdown notes have frontmatter; anything else would accept edits that are never saved.
+		fields.createDiv({ cls: 'lb-inspector-hint', text: '这不是 Markdown 笔记，没有可编辑的属性。' });
+		renderActions(inspector, app, entry.file);
+		return;
+	}
+
+	const frontmatter = (app.metadataCache.getFileCache(entry.file)?.frontmatter ?? {}) as Record<string, unknown>;
 	let groupByName: string | null = null;
 	if (groupBy && parsePropertyId(groupBy).type === 'note') {
 		groupByName = parsePropertyId(groupBy).name;
+	}
+	const groupKind = groupByName ? resolvePropertyKind(app, groupByName, frontmatter[groupByName]) : null;
+	if (groupByName && (groupKind === 'list' || groupKind === 'tags')) {
+		// A list property cannot be a single-choice select without flattening it into a string.
+		renderField(fields, ctx, groupByName, frontmatter[groupByName]);
+	} else if (groupBy && groupByName) {
 		const current = entry.getValue(groupBy);
 		renderSelectField(
 			fields,
@@ -128,7 +146,6 @@ export function renderPropertyInspector(
 		);
 	}
 
-	const frontmatter = (app.metadataCache.getFileCache(entry.file)?.frontmatter ?? {}) as Record<string, unknown>;
 	const keys = Object.keys(frontmatter);
 	// Properties shown by this view but missing from the note can be filled in directly.
 	for (const propertyId of config.getOrder()) {
@@ -146,30 +163,104 @@ export function renderPropertyInspector(
 	}
 
 	renderPreview(inspector, app, host, entry.file);
+	renderActions(inspector, app, entry.file);
+	trackFocus(inspector, host);
+	restoreFocus(inspector, host);
+}
 
+function renderActions(inspector: HTMLElement, app: App, file: TFile): void {
 	const actions = inspector.createDiv({ cls: 'lb-inspector-actions' });
 	const openButton = actions.createEl('button', { cls: 'lb-button' });
 	setIcon(openButton, 'external-link');
 	openButton.createSpan({ text: '打开笔记' });
 	openButton.addEventListener('click', () => {
-		void app.workspace.openLinkText(entry.file.path, '');
+		void app.workspace.openLinkText(file.path, '');
 	});
 	if (!Platform.isPhone) {
 		const splitButton = actions.createEl('button', { cls: 'lb-button' });
 		setIcon(splitButton, 'columns-2');
 		splitButton.createSpan({ text: '在右侧分栏打开' });
 		splitButton.addEventListener('click', () => {
-			void app.workspace.openLinkText(entry.file.path, '', 'split');
+			void app.workspace.openLinkText(file.path, '', 'split');
 		});
 	}
+}
 
-	const focus = pendingFocus.get(host);
-	if (focus && focus.until > Date.now()) {
-		inspector
-			.querySelector<HTMLElement>(`[data-property="${CSS.escape(focus.key)}"] input`)
-			?.focus();
-	} else if (focus) {
-		pendingFocus.delete(host);
+function trackFocus(inspector: HTMLElement, host: Component): void {
+	const memory = focusMemory(host);
+	const fieldInput = (target: EventTarget | null): { input: HTMLInputElement; key: string } | null => {
+		if (!(target instanceof HTMLInputElement) || target.type === 'checkbox') return null;
+		const key = target.closest<HTMLElement>('[data-property]')?.dataset.property;
+		return key ? { input: target, key } : null;
+	};
+	inspector.addEventListener('focusin', (event) => {
+		const field = fieldInput(event.target);
+		if (field) memory.focusIn(field.key, field.input.value);
+	});
+	inspector.addEventListener('input', (event) => {
+		const field = fieldInput(event.target);
+		if (field) memory.input(field.key, field.input.value, field.input.selectionStart, field.input.selectionEnd);
+	});
+	inspector.addEventListener('change', (event) => {
+		const field = fieldInput(event.target);
+		if (field) memory.committed(field.key, field.input.value);
+	});
+	inspector.addEventListener('focusout', (event) => {
+		const field = fieldInput(event.target);
+		if (!field) return;
+		const token = memory.focusIn(field.key, field.input.value);
+		// Decide after the focus move settles: a re-render detaches the input, a real blur does not.
+		window.setTimeout(() => {
+			memory.focusOut(token, {
+				inputConnected: field.input.isConnected,
+				focusInInspector: inspector.isConnected && inspector.contains(document.activeElement),
+			});
+		}, 0);
+	});
+}
+
+/**
+ * Runs `callback` when the user moves focus away. Chromium also blurs an input while a re-render
+ * removes it; that blur is ignored, so half-typed text is restored instead of being committed.
+ */
+function onUserBlur(input: HTMLInputElement, callback: () => void): void {
+	input.addEventListener('blur', () => {
+		window.setTimeout(() => {
+			if (input.isConnected) callback();
+		}, 0);
+	});
+}
+
+function restoreFocus(inspector: HTMLElement, host: Component): void {
+	const snapshot = focusMemory(host).restore();
+	if (!snapshot) return;
+	const input = inspector.querySelector<HTMLInputElement>(
+		`[data-property="${CSS.escape(snapshot.key)}"] input:not([type="checkbox"])`,
+	);
+	if (!input) {
+		focusMemory(host).clear();
+		return;
+	}
+	if (snapshot.dirty && input.value !== snapshot.value) {
+		const rendered = input.value;
+		input.value = snapshot.value;
+		// A programmatic value never fires `change`, so commit the restored text when the user leaves
+		// (unless further typing already produced a native `change`).
+		let committed = false;
+		input.addEventListener('change', () => {
+			committed = true;
+		});
+		onUserBlur(input, () => {
+			if (!committed && input.value !== rendered) input.dispatchEvent(new Event('change', { bubbles: true }));
+		});
+	}
+	input.focus();
+	if (snapshot.start !== null && snapshot.end !== null) {
+		try {
+			input.setSelectionRange(snapshot.start, snapshot.end);
+		} catch {
+			// date and number inputs do not support selection ranges
+		}
 	}
 }
 
@@ -290,7 +381,7 @@ function renderListEditor(
 		const added = input.value.split(/[,，]/);
 		if (added.every((text) => text.trim() === '')) return;
 		input.value = '';
-		if (stayFocused) keepFocus(ctx.host, key);
+		if (stayFocused) focusMemory(ctx.host).committed(key, '');
 		void writeProperty(ctx, key, normalizeListItems(kind, [...items, ...added]));
 	};
 	input.addEventListener('keydown', (event: KeyboardEvent) => {
@@ -299,11 +390,10 @@ function renderListEditor(
 			event.preventDefault();
 			commit(true);
 		} else if (event.key === 'Backspace' && input.value === '' && items.length > 0) {
-			keepFocus(ctx.host, key);
 			void writeProperty(ctx, key, normalizeListItems(kind, items.slice(0, -1)));
 		}
 	});
-	input.addEventListener('blur', () => commit(false));
+	onUserBlur(input, () => commit(false));
 }
 
 /** Single-choice property shown as colored pills, like a Notion select. */
