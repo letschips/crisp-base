@@ -22,10 +22,10 @@ export class CrispBaseSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-		containerEl.createEl('h2', { text: 'Crisp Base' });
-		containerEl.createEl('p', {
-			text: 'Notion-like 数据库视图套件（看板 / 日历 / 时间线 / 关联 / 画廊）。输入 Crisp 系列激活码后解锁写入与新建。',
-		});
+		containerEl
+			.createDiv({ cls: 'crisp-brand-header' })
+			.createEl('h2', { text: 'Crisp Base' });
+		containerEl.createEl('p', { text: '换个视图，管好笔记', cls: 'crisp-brand-slogan' });
 		this.renderAbout();
 
 		if (isLicensed()) {
