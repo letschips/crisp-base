@@ -16,15 +16,26 @@ export function setLicense(
 	code?: string,
 	payload?: LicensePayload,
 ): void {
-	current = { valid, code, payload };
+	current = { valid: valid === true, code, payload };
 }
 
 export function clearLicense(): void {
 	current = { valid: false };
 }
 
+// The state lives in this module only; nothing on the plugin instance can turn it on.
+// A license that expires while Obsidian runs locks again at the next check.
+function active(): boolean {
+	if (!current.valid) return false;
+	const expires = new Date(current.payload?.expiresAt ?? '').getTime();
+	if (!Number.isFinite(expires) || Date.now() < expires) return true;
+	current = { valid: false };
+	setTimeout(notifyLicenseChanged, 0);
+	return false;
+}
+
 export function isLicensed(): boolean {
-	return current.valid;
+	return active();
 }
 
 export function licensePayload(): LicensePayload | undefined {
@@ -32,7 +43,7 @@ export function licensePayload(): LicensePayload | undefined {
 }
 
 export function requireLicense(): boolean {
-	if (current.valid) return true;
+	if (active()) return true;
 	new Notice('Crisp Base 未激活：请在 设置 → Crisp Base 输入激活码。');
 	return false;
 }
