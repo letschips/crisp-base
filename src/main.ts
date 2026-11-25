@@ -1,6 +1,6 @@
 import { Notice, Plugin, parsePropertyId } from 'obsidian';
 import { preserveUnreadableData, verifyDataWrite } from './data-safety';
-import { PLUGIN_FEATURE, verifyLicense } from './license';
+import { PLUGIN_FEATURE, inheritSiblingLicense, normalizeLicenseCode, verifyLicense } from './license';
 import {
 	clearLicense,
 	notifyLicenseChanged,
@@ -8,7 +8,7 @@ import {
 } from './license-state';
 import { initOptionColors } from './option-colors';
 import type { CrispBaseData } from './plugin-data';
-import { normalizePluginData, withOptionColors } from './plugin-data';
+import { normalizePluginData, withLicense, withOptionColors } from './plugin-data';
 import { CrispBaseSettingTab } from './settings';
 import { CRISP_BASE_BOARD_VIEW_TYPE, CrispBaseBoardView } from './crisp-base-board-view';
 import {
@@ -33,6 +33,9 @@ export default class CrispBasePlugin extends Plugin {
 	private dataWriteBlocked = false;
 	private pluginData: CrispBaseData = {};
 	private saveQueue: Promise<void> = Promise.resolve();
+	private unloaded = false;
+	/** Result of the stored code's online check: true when it passed or no check was needed to reject it. */
+	private ownLicenseCheck: Promise<boolean> = Promise.resolve(false);
 
 	/** Applies `update` to the latest data and saves; saves run one at a time so none is lost. */
 	updatePluginData(update: (data: CrispBaseData) => CrispBaseData): Promise<void> {
@@ -303,23 +306,49 @@ export default class CrispBasePlugin extends Plugin {
 		initOptionColors(data.optionColors ?? {}, (map) =>
 			this.updatePluginData((current) => withOptionColors(current, map)),
 		);
-		if (data.licenseCode) {
+		const storedCode = normalizeLicenseCode(data.licenseCode);
+		if (storedCode) {
 			// Local Ed25519 + expiry verification only — fast, no network.
-			const local = await verifyLicense(data.licenseCode, PLUGIN_FEATURE, {
+			const local = await verifyLicense(storedCode, PLUGIN_FEATURE, {
 				skipOnlineCheck: true,
 			});
 			if (local.valid && local.payload) {
-				setLicense(true, data.licenseCode, local.payload);
+				setLicense(true, storedCode, local.payload);
 				notifyLicenseChanged();
 				// Online device/revocation check runs in the background and
 				// downgrades the license if the server rejects it.
-				void verifyLicense(data.licenseCode, PLUGIN_FEATURE).then((result) => {
-					if (!result.valid) {
+				this.ownLicenseCheck = verifyLicense(storedCode, PLUGIN_FEATURE).then((result) => {
+					if (!result.valid && !this.unloaded) {
 						clearLicense();
 						notifyLicenseChanged();
 					}
-				});
+					return result.valid;
+				}, () => false);
 			}
 		}
+		this.app.workspace.onLayoutReady(() => {
+			void this.inheritSiblingLicenseOnce();
+		});
+	}
+
+	onunload(): void {
+		this.unloaded = true;
+	}
+
+	/**
+	 * Once after layout: when this plugin has no working code, take the first one a sibling Crisp
+	 * plugin holds that passes the online check. It is applied through the same license state as a typed code.
+	 */
+	private async inheritSiblingLicenseOnce(): Promise<void> {
+		if (await this.ownLicenseCheck || this.unloaded) return;
+		await inheritSiblingLicense(this.app, {
+			currentCode: () => normalizeLicenseCode(this.pluginData.licenseCode),
+			aborted: () => this.unloaded,
+			accept: async (code, result) => {
+				await this.updatePluginData((data) => withLicense(data, code, Date.now()));
+				if (result.payload) setLicense(true, code, result.payload);
+				notifyLicenseChanged();
+			},
+		});
 	}
 }

@@ -1,6 +1,6 @@
 import type { App } from 'obsidian';
 import { Notice, PluginSettingTab, Setting } from 'obsidian';
-import { PLUGIN_FEATURE, verifyLicense } from './license';
+import { PLUGIN_FEATURE, normalizeLicenseCode, verifyLicense } from './license';
 import {
 	clearLicense,
 	isLicensed,
@@ -68,10 +68,10 @@ export class CrispBaseSettingTab extends PluginSettingTab {
 				button.onClick(async () => {
 					this.busy = true;
 					this.display();
-					const result = await verifyLicense(this.code, PLUGIN_FEATURE);
+					const code = normalizeLicenseCode(this.code);
+					const result = await verifyLicense(code, PLUGIN_FEATURE);
 					if (result.valid && result.payload) {
-						setLicense(true, this.code.trim(), result.payload);
-						const code = this.code.trim();
+						setLicense(true, code, result.payload);
 						await this.plugin.updatePluginData((data) =>
 							withLicense(data, code, Date.now()),
 						);
