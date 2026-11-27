@@ -4,6 +4,10 @@
 
 ![Screenshot](assets/screenshot.png)
 
+## 0.4.1
+
+- 修复：Crisp Pulse 停用时继承不到它的授权码。
+
 ## 0.4.0
 
 - 新增：库里已有其他 Crisp 插件激活过套装码时自动激活，不用再输入。
